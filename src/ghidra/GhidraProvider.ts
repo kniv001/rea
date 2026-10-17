@@ -153,8 +153,6 @@ export class GhidraProvider implements AnalysisProviderCandidate {
         reason: `Ghidra v1 imports executable targets, not ${target.kind} targets.`,
         diagnostics,
       };
-    if (hostPlatform === "win32")
-      return inspectWindowsP0TargetSupport(target, diagnostics);
     const mipsReason =
       isGhidraPspTarget(target) &&
       (hostPlatform !== "linux" ||
@@ -300,47 +298,3 @@ export class GhidraProvider implements AnalysisProviderCandidate {
   }
 }
 
-const inspectWindowsP0TargetSupport = (
-  target: BinaryTarget,
-  diagnostics: Readonly<Record<string, JsonValue>>,
-): ProviderTargetSupport => {
-  if (target.format !== "pe")
-    return {
-      status: "unsupported",
-      code: "target_format_unsupported",
-      reason: "Windows Ghidra P0 accepts PE targets only.",
-      diagnostics,
-    };
-  if (target.architecture !== "x86" && target.architecture !== "x86_64")
-    return {
-      status: "unsupported",
-      code: "architecture_unsupported",
-      reason: "Windows Ghidra P0 accepts x86 and x86-64 PE targets only.",
-      diagnostics,
-    };
-  if (
-    target.executableRole !== "application" &&
-    target.executableRole !== "shared-library"
-  )
-    return {
-      status: "unsupported",
-      code: "target_role_unsupported",
-      reason:
-        "Windows Ghidra P0 accepts PE applications and DLLs, not non-executable or unclassified images.",
-      diagnostics,
-    };
-  if (target.managed !== false)
-    return {
-      status: "unsupported",
-      code: "managed_target_unsupported",
-      reason:
-        "Windows Ghidra P0 accepts native PE applications and DLLs; managed or unclassified PE targets are unsupported.",
-      diagnostics,
-    };
-  return {
-    status: "supported",
-    code: null,
-    reason: null,
-    diagnostics,
-  };
-};

@@ -20,6 +20,7 @@ import { jsonValueSchema } from "../domain/jsonValue.js";
 import { parseConfig } from "../config/parseConfig.js";
 import type { BinaryTarget } from "../domain/binaryTargetTypes.js";
 import { parseExecutableHeader } from "../domain/binaryTarget.js";
+import { hasWindowsNativeAuthority } from "../process/WindowsAuthority.js";
 import { GhidraProvider } from "./GhidraProvider.js";
 import type { GhidraTargetSnapshot } from "./GhidraClient.js";
 import type { GhidraProviderClientFactory } from "./GhidraProviderClient.js";
@@ -100,8 +101,9 @@ describe("Ghidra provider", () => {
         },
       },
     });
+    // 格式准入跨平台：DOS MZ 在 Windows 上同样交给 Ghidra 的 MzLoader。
     const windows = provider({ ...installationHost(), platform: "win32" });
-    expect(windows.inspectTargetSupport(target).status).toBe("unsupported");
+    expect(windows.inspectTargetSupport(target).status).toBe("supported");
   });
   it("discovers the exact installation once without launching Ghidra", () => {
     let probeCount = 0;
@@ -228,8 +230,9 @@ describe("Ghidra raw-binary profile", () => {
     expect(shifted.value.profile?.digest).not.toBe(
       resolved.value.profile.digest,
     );
+    // raw-binary 同样跨平台，不再因宿主机被拒。
     const windows = provider({ ...installationHost(), platform: "win32" });
-    expect(windows.inspectTargetSupport(target).status).toBe("unsupported");
+    expect(windows.inspectTargetSupport(target).status).toBe("supported");
   });
 });
 
@@ -323,7 +326,10 @@ describe("Ghidra platform support", () => {
     });
   });
 
-  it("keeps Windows P0 unavailable until native isolation authority exists", () => {
+  // 装了 Windows 原生控件时，这条“缺少授权”的断言不适用
+  it.skipIf(hasWindowsNativeAuthority("win32"))(
+    "keeps Windows P0 unavailable until native isolation authority exists",
+    () => {
     const ghidra = provider({ ...installationHost(), platform: "win32" });
     const nativeApplication = peTarget("x86_64");
 
@@ -379,38 +385,22 @@ describe("Ghidra platform support", () => {
         }),
       ]),
     );
-    expect(
-      ghidra.inspectTargetSupport({
-        ...nativeApplication,
-        executableRole: "non-executable",
-      }),
-    ).toMatchObject({
-      status: "unsupported",
-      code: "target_role_unsupported",
-    });
-    expect(
-      ghidra.inspectTargetSupport({ ...nativeApplication, managed: true }),
-    ).toMatchObject({
-      status: "unsupported",
-      code: "managed_target_unsupported",
-    });
-    expect(
-      ghidra.inspectTargetSupport(executableTarget("elf", "x86_64")),
-    ).toMatchObject({
-      status: "unsupported",
-      code: "target_format_unsupported",
-    });
-    expect(
-      ghidra.inspectTargetSupport(executableTarget("pe", "arm64")),
-    ).toMatchObject({
-      status: "unsupported",
-      code: "architecture_unsupported",
-    });
+    // 外置引擎跨平台：Windows 不再按格式/架构另造一套准入，
+    // 与其它宿主机一样交给 Ghidra 自己的 loader。
+    for (const target of [
+      { ...nativeApplication, executableRole: "non-executable" as const },
+      { ...nativeApplication, managed: true },
+      executableTarget("elf", "x86_64"),
+      executableTarget("pe", "arm64"),
+    ])
+      expect(ghidra.inspectTargetSupport(target)).toMatchObject({
+        status: "supported",
+      });
   });
 });
 
 describe("Ghidra Windows PE fixture admission", () => {
-  it("admits generated PE32 and PE32+ DLLs and applications while preserving native-only Windows admission", async () => {
+  it("admits generated PE32 and PE32+ DLLs and applications with the cross-platform admission policy", async () => {
     const root = fileURLToPath(new URL("../../", import.meta.url));
     await promisify(execFile)(process.execPath, [
       join(root, "scripts/create-ghidra-windows-fixture.mjs"),
@@ -445,18 +435,16 @@ describe("Ghidra Windows PE fixture admission", () => {
           ...metadata.value,
         };
         expect(ghidra.inspectTargetSupport(target).status).toBe("supported");
-        for (const [candidate, code] of [
-          [
-            { ...target, executableRole: "non-executable" },
-            "target_role_unsupported",
-          ],
-          [{ ...target, managed: true }, "managed_target_unsupported"],
-          [{ ...target, architecture: "arm64" }, "architecture_unsupported"],
-        ] as const) {
-          expect(ghidra.inspectTargetSupport(candidate)).toMatchObject({
-            status: "unsupported",
-            code,
-          });
+        // Windows 不再按格式/架构/角色另设准入：Ghidra 的 loader 与语言选择
+        // 本身跨平台，宿主机差异只体现在进程与文件权威边界上。
+        for (const candidate of [
+          { ...target, executableRole: "non-executable" as const },
+          { ...target, managed: true },
+          { ...target, architecture: "arm64" as const },
+        ]) {
+          expect(ghidra.inspectTargetSupport(candidate).status).toBe(
+            "supported",
+          );
         }
       }
     }

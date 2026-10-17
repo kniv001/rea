@@ -17,14 +17,18 @@ additional permission flag or degraded mode is required.
 - Node.js 22.x (>=22.19), 24.x (>=24.11), or 26+;
 - an operator-installed Ghidra 12.1.x distribution (verified with 12.1.4);
 - a 64-bit full JDK inside that installation's declared Java range (JDK 21 or newer, with no maximum, for current 12.1 releases);
-- an explicit native, non-managed x86 or x86-64 PE application or DLL; and
+- any executable target the cross-platform admission policy accepts (PE, ELF,
+  Mach-O; x86, x86-64, arm, arm64, MIPS) — the Windows host no longer narrows
+  admission by format or architecture, because the Ghidra loader and language
+  selection are platform-independent; and
 - the 25 read-only Ghidra inventory, memory, and function-analysis operations.
 
 Loaded memory reads and file offsets preserve Ghidra's observed source mappings.
 PE load-image inspection returns an explicit unsupported attestation status.
 Independent verification covers admitted DOS MZ, explicit COM, and explicit
-[raw-binary imports](raw-binary.md) on their supported hosts. This does not
-extend Windows P0 admission beyond native PE. For x64 PE
+[raw-binary imports](raw-binary.md) on their supported hosts. Format admission now matches
+other hosts; what remains Windows-specific is the process and file authority
+boundary (Job Object ownership, private DACLs, NTFS path admission). For x64 PE
 NativeAOT RTR 9.1, the read-only snapshot parser can report metadata through
 `inspect_native_load_image` and `inspect_native_data_type` without a JAR or
 database mutation. A real Windows-host NativeAOT Ghidra run is still required
