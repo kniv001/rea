@@ -75,3 +75,6 @@ Thumbs.db
 website/_site/
 # Temporary translation output prepared before replacing the complete site.
 website/.i18n-*/
+
+# 本地工具产物（jar 等，不入库）
+.tools/
