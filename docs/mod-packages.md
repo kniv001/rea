@@ -1,27 +1,21 @@
-# Fabric-style MCP mods
+# MCP mods
 
-REA can act as a small Fabric-style loader for MCP servers. The host agent
-starts one REA MCP session; REA's package surface lists installed mods without
-starting them. Opening a mod package starts its MCP server, discovers its
-tools, and proxies them into the same REA session. Closing the package removes
-the proxy tools and releases the server process.
+REA can act as a small loader for MCP servers. The host agent starts one REA
+MCP session; REA's package surface lists installed mods without starting them.
+Opening a mod package starts its MCP server, discovers its tools, and proxies
+them into the same REA session. Closing the package removes the proxy tools and
+releases the server process.
 
-The mapping is intentional:
+The roles are:
 
-| Fabric concept     | REA / MCP concept                                             |
-| ------------------ | ------------------------------------------------------------- |
-| Minecraft          | The agent host, for example DeepSeek Harness                  |
-| Fabric Loader      | REA's mod loader and package lifecycle                        |
-| Fabric API         | REA's core tools, package surface, Evidence, and verification |
-| `fabric.mod.json`  | `rea.mod.json`                                                |
-| Mod entrypoint     | The mod's MCP server (`initialize` + `tools/list`)            |
-| Mod dependencies   | `requires` in `rea.mod.json`                                  |
-| Mod enable/disable | `open_tool_package` / `close_tool_package`                    |
-| Mod list           | `list_tool_packages` / `inspect_tool_package`                 |
-| Mixins/events      | REA core guards and proxy lifecycle; mods stay out-of-process |
+| Role       | Responsibility                                                                       |
+| ---------- | ------------------------------------------------------------------------------------ |
+| Host agent | Runs the model session and consumes REA's MCP surface                                |
+| REA        | Loads mods on demand, proxies their tools, and keeps its core tools and verification |
+| Mod        | An independent MCP server described by a local manifest                              |
 
-REA itself is also a mod: the host mounts REA as one MCP server, and REA's
-core tool families remain available through its package surface.
+REA itself is also mounted as one MCP server by the host, and its core tool
+families remain available through its package surface.
 
 ## Manifest
 

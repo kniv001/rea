@@ -24,11 +24,11 @@ describe("onboarding documentation product facts", () => {
     );
   });
 
-  it("documents this fork's package surface, mod loader, and DSH host", async () => {
+  it("documents this fork's package surface, mod loading, and DSH host", async () => {
     const content = await readFile(resolve("README.md"), "utf8");
     expect(content).toContain("kniv001/rea");
-    expect(content).toContain("REA_MCP_TOOL_SURFACE");
-    expect(content).toContain("rea.mod.json");
     expect(content).toContain("DeepSeek Harness");
+    expect(content).toContain("MCP");
+    expect(content).toContain("模组");
   });
 });

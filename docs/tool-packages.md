@@ -72,7 +72,7 @@ usage; the toolkit's own interface remains authoritative after that.
 
 An external package can also be backed by a local MCP server manifest. Opening
 it starts that server and proxies its tools through REA; see
-[Fabric-style MCP mods](mod-packages.md).
+[MCP mods](mod-packages.md).
 
 ### VMProtect
 

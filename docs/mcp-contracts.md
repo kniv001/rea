@@ -298,7 +298,7 @@ matches the complete canonical catalog. Use `list_tool_packages` and
 `inspect_tool_package` to discover unopened packages. External packages may be
 backed by local MCP mod manifests: opening one starts that server and registers
 namespaced proxy tools. See [tool packages](tool-packages.md) and
-[Fabric-style MCP mods](mod-packages.md).
+[MCP mods](mod-packages.md).
 
 Call `binary_session` with `{}` and read `result.tool_availability` to choose a
 callable operation for the current target, provider, host, and negotiated client

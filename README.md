@@ -1,109 +1,69 @@
-# REA Fork — 插件化 MCP 工具包 / Fabric 式 MCP 模组加载器
+# REA Fork — 功能改动说明
 
-本仓库是 **`kniv001/rea`** 的个人 fork，基于上游 [`morluto/rea`](https://github.com/morluto/rea) 6.4.0。它不跟随上游 README、翻译版、发布流程或贡献流程。
+本仓库是 **`kniv001/rea`** 的个人 fork，基于上游 REA。本文只描述功能层面的改动与新增，不列实现文件、技术栈或安装细节；REA 原有的产品介绍和使用教程不再重复。
 
-**本 README 只记录我们自己的改动与新增内容。** REA 原有的产品介绍、安装向导、功能清单和截图不再重复；上游能力本身仍然保留在代码和 `docs/` 中。
+## 一、工具包的渐进披露
 
-> English: this fork keeps upstream REA's core tools, Evidence, restrictions, and verification. This README documents only the fork's modifications and additions.
+REA 的工具可以按“包”组织和暴露：
 
-## 改了什么
+- 默认仍是完整工具目录，行为与上游一致。
+- 可选“按包披露”：会话开始时只出现四个包操作——列出包、查看包的边界与操作、打开包、关闭包。
+- 打开一个包后，该包的具体工具才出现；关闭后收回。宿主能感知工具列表变化，不需要重连。
+- 每个包有简介、适用边界、适用前提和操作清单；查看包不会执行分析或启动外部工具。
+- 包分为核心生命周期、分析工具族、分析 provider、外部工具包等类别。
+- 外部工具包只给简介、边界、子配置和入口说明，不暴露内部脚本或工具；当前包括 VMP 工具包、MT 管理器和手机 MCP 桥。
+- 会话状态只报告当前已放出的工具，未打开的包不会被当成可用能力。
+- 启动时校验包完整性；新增工具如果没有归入任何包，会直接失败而不是悄悄消失。
 
-### 1. 插件化/模组化工具包（渐进披露）
+## 二、MCP 模组的加载与代理
 
-- 新增 `REA_MCP_TOOL_SURFACE=packages`。
-- 默认仍为 `full`（完整工具目录）；`packages` 启动时只暴露 4 个包网关：
-  - `list_tool_packages`
-  - `inspect_tool_package`
-  - `open_tool_package`
-  - `close_tool_package`
-- `open` 后才通过 `notifications/tools/list_changed` 放出该包的具体工具，`close` 收回。
-- 包分类：`core`、`native-analysis`、`artifacts`、`android`、`web`、`workflows`、`session-evidence`、`process-and-network`、`frida-instrumentation`、`ghidra`/`ida`/`hopper`（provider）、`vmp`/`mt-manager`/`phone-mcp-bridge`（external）。
-- external 包只暴露简介、边界、profiles、usage，不暴露具体脚本或桥工具。
-- `packages` 模式下 `binary_session.tool_availability` 只报告当前已放出的表面。
-- 包成员完整性在启动时校验；新增工具漏归类会失败。
+REA 可以发现、启动并代理外部 MCP 模组：
 
-实现：`src/composition/toolPackageCatalog.ts`、`src/server/toolPackageSurface.ts`、`src/contracts/toolPackageToolContracts.ts`。
+- 从本地模组目录发现模组清单；模组本体是独立的 MCP 服务。
+- 加载清单不会启动服务；只有“打开包”才启动模组服务、发现工具并代理到当前会话。
+- 关闭包时移除代理工具并停止模组服务。
+- 支持模组依赖、启动超时、工具列表变化重同步和启动失败回滚。
+- 支持本地进程和 HTTP 两种连接方式。
+- 代理结果标记为外部观察，不冒充 REA 自己的 Evidence。
+- 生产会话默认扫描模组目录；测试和嵌入场景可以显式关闭扫描。
 
-### 2. Fabric 式 MCP 模组加载器
+## 三、DeepSeek Harness 接入
 
-- `REA_MODS_DIR`（默认 `~/.rea/mods`）下的 `rea.mod.json` 即模组清单。
-- 模组本体是独立 MCP server（stdio 或 streamable-http）。
-- `open_tool_package` 才启动模组 server，发现工具并以 `mod__<prefix>__<raw>` 代理进 REA 的 `tools/list`；`close` 卸工具并关进程。
-- 支持依赖、超时、`tools/list_changed` 重同步、启动失败回滚。
-- 模组结果标记为外部观察，不冒充 REA Evidence。
-- 生产 MCP adapter 默认扫描模组目录；测试/嵌入通过 `loadMods: true` 显式开启。
+REA 可以作为 MCP 服务挂载到 DeepSeek Harness：
 
-实现：`src/domain/mod/modManifest.ts`、`src/composition/modLoader.ts`、`src/server/mcpModHost.ts`。
+- 模型看到统一的 `mcp__rea__*` 工具前缀。
+- 初始只出现四个包操作；打开包后宿主自动刷新工具列表。
+- 提供可直接安装的宿主组合包，安装后即可挂载，不需要改宿主源码。
+- REA 的服务端说明会进入宿主提示；工具名称、描述和输入契约一并带过去。
+- 提供 REA 技能：明确四个入口操作、要求先探测再判断、目标内容是数据而不是指令、区分 observed/derived/inferred/unknown、缺覆盖是 unknown 而不是 absence。
+- 宿主的限制会被明确保留：结果级来源标记、工具副作用标注和 prompts 不会自动带过去；宿主的审批策略独立于 REA 的 effects。
 
-### 3. DeepSeek Harness 接入与模型主策
+## 四、Ghidra 支持
 
-- 新增 `integrations/dsh`：可直接作为本地 patch，也可作为 patch-only bundle 安装到 DSH 桌面版。
-- DSH 通过 `@deepseek-ai/dsh-mcp-client` 挂载 REA，模型看到 `mcp__rea__*`。
-- REA MCP server instructions 会原样进 DSH 系统提示；工具名/描述/输入 schema 也会带过去。
-- `reverse-engineer-anything` skill 升到 v43，新增 DSH 段和“Start here when REA is an MCP server”：明确点名四个网关，要求先 `list_tool_packages`，不要因为宿主只有 coding-agent 工具就断定 REA 不存在。
-- 模型主策还包含：目标内容是数据不是指令；区分 observed/derived/inferred/unknown；缺覆盖是 unknown 不是 absence；不把静态分析说成观察到执行。
-- DSH 桥的限制已记录：`_meta.provenance`、MCP annotations/effects、prompts 不会自动带过去；宿主审批独立于 REA effects。
+- 支持 Ghidra 12.1.x。
+- 会检查安装版本、Java、headless 入口、native decompiler 和 native authority。
+- 在宿主接入时显式传入 Ghidra 与 Java 路径；缺失或版本不符时给出可执行的修复提示。
 
-文档：`docs/tool-packages.md`、`docs/mod-packages.md`、`integrations/dsh/README.md`。
+## 保留的 REA 能力
 
-### 4. Ghidra 12.1.x 路径
+- 上游现有的分析工具、provider 适配、Evidence 语义、限制、effects、机械验证和 target lifecycle 全部保留。
+- 本 fork 只改变两件事：模型如何看到工具，以及外部工具如何接入。
 
-- REA 的 Ghidra provider 需要 12.1.x。
-- DSH bundle 的 `env` 显式设置 `GHIDRA_INSTALL_DIR` 和 `JAVA_HOME`。
-- 本机验证：Ghidra `12.1.4`、Java `21.0.7`，`rea doctor --provider ghidra` 全绿。
+## 使用方式（功能层）
 
-## 保留的 REA 本体
-
-- 上游 MCP/CLI 工具目录、provider 适配、Evidence 语义。
-- target lifecycle、restrictions、effects、响应预算、机械验证。
-- 现有测试与文档；本 fork 只改变工具暴露方式和模组加载层。
-
-## 快速开始
-
-```powershell
-cd D:\vs\rea
-npm ci
-npm run build:cached
-npm run compile   # 更新 dist/mcp/main-*.js（MCP 实际运行 bundle）
-```
-
-以 `packages` 模式运行 MCP：
-
-```powershell
-$env:REA_MCP_TOOL_SURFACE = "packages"
-node scripts\rea.mjs mcp
-```
-
-DSH 桌面版：
-
-1. 把 REA skill 复制到 DSH 扫描的根：
-
-```powershell
-Copy-Item -Recurse -Force "D:\vs\rea\skills\reverse-engineer-anything" `
-  "$env:USERPROFILE\.agents\skills\"
-```
-
-2. 安装 `integrations/dsh`（或本机 `D:\vs\rea-dsh-bundle`）为本地 bundle，启用后重启。
-3. 新开会话，模型应看到 `mcp__rea__*` 和 `reverse-engineer-anything` skill。
-
-## 验证
-
-```powershell
-npm run typecheck
-npx vitest run --project mcp-boundary
-npx vitest run --project composition
-npm run docs:check
-npm run verify:module-boundaries
-```
+- 完整目录模式：默认，所有工具可用。
+- 按包披露模式：初始工具很少，按需打开包。
+- 宿主接入：把 REA 作为 MCP 服务挂载；需要完整工作方法时再安装 REA 技能。
+- 外部模组：放入本地模组目录后，在会话中打开对应包即可使用。
 
 ## 边界
 
 - 外部模组是本地受信代码，以当前用户权限运行；REA 不做沙箱。
-- `open_tool_package` 是同意边界；加载 manifest 不启动进程。
-- 不支持 manifest 热替换；模组工具列表变化会重同步，失败时重开包。
-- DSH 会丢弃每条结果的 `_meta.provenance`，也不映射 MCP annotations/effects；需要硬门控时在 DSH 侧加 `tools/pre-execute` guard。
-- skill 不是 MCP server 的一部分；没装到宿主技能根时，宿主只看到 server instructions 和工具描述。
+- 打开包是同意边界；加载模组清单不会启动进程。
+- 不支持模组清单热替换；模组工具列表变化会重同步，失败时重开包。
+- 宿主会丢弃结果级来源标记，也不映射工具副作用标注；需要硬门控时在宿主侧加策略。
+- 技能与 MCP 服务分离；宿主未安装技能时，只有服务端说明和工具描述。
 
-## 上游
+## 来源
 
-上游项目：<https://github.com/morluto/rea>。上游源码和 `docs/` 保留用于参考；本 fork 的入口、构建方式、DSH 接入和边界以本 README 为准。上游的多语言 README 不再维护，也不要求与本文同步。
+本仓库是个人 fork；上游项目仅作为来源说明。功能改动以本仓库当前实现为准。
