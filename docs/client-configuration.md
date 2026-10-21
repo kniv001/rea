@@ -60,6 +60,13 @@ and Claude Code reports that autocompact is thrashing. To avoid this:
   `mcpServers.rea` entry in `~/.claude.json` (`$CLAUDE_CONFIG_DIR/.claude.json`
   when that variable is set), then restart Claude Code. Setup keeps this
   override.
+- For the largest reduction, add `"REA_MCP_TOOL_SURFACE": "packages"` to the
+  same `env` object. The initial `tools/list` then carries only four package
+  gateways plus a compact index in the server instructions; concrete tools
+  appear after `open_tool_package` and `notifications/tools/list_changed`. If
+  the client ignores that notification, pin the required packages with
+  `"REA_MCP_TOOL_PACKAGES": "core,native-analysis"` or keep the default `full`
+  surface. See [plugin-style tool packages](tool-packages.md).
 
 The sizes above come from REA's own `tools/list`. A live Claude Code session
 against DeepSeek's API is unverified.

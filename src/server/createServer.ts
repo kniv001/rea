@@ -39,6 +39,18 @@ import {
   COMPACT_INPUT_SCHEMA_BUDGET_BYTES,
   parseMcpInputSchemaProfile,
 } from "../config/mcpInputSchemaProfile.js";
+import { parseMcpToolSurface } from "../config/mcpToolSurface.js";
+import {
+  TOOL_PACKAGE_CATALOG,
+  buildToolPackageCatalogWithMods,
+  renderToolPackageIndex,
+} from "../composition/toolPackageCatalog.js";
+import { loadMods } from "../composition/modLoader.js";
+import { McpModHost } from "./mcpModHost.js";
+import {
+  createToolPackageSurface,
+  installToolPackageSurface,
+} from "./toolPackageSurface.js";
 import type { CompactInputSchemaPresentation } from "./EvidenceMcpServer.js";
 import { isAbsolute } from "node:path";
 
@@ -162,6 +174,11 @@ export interface CreateServerOptions {
   readonly fridaInstrumentation?: FridaInstrumentationPort;
   readonly availabilityPolicy?: () => AvailabilityPolicy;
   readonly optionalProviderLoadFailures?: OptionalProviderLoadFailures;
+  /**
+   * Scan the configured MCP mod directory. The long-lived MCP adapter enables
+   * this; focused tests and embedders stay isolated unless they opt in.
+   */
+  readonly loadMods?: boolean;
 }
 
 const installSessionToolAvailability = (
@@ -235,6 +252,7 @@ const createMcpServer = (
   session: BinarySessionPort | undefined,
   delivery: ToolResultDelivery,
   compactPresentation: CompactInputSchemaPresentation | undefined,
+  packageIndex: string | undefined,
 ): EvidenceMcpServer =>
   new EvidenceMcpServer(
     {
@@ -243,11 +261,13 @@ const createMcpServer = (
     },
     {
       capabilities: {},
-      instructions: `${
+      instructions: [
         session === undefined
           ? ACTIVE_TARGET_INSTRUCTIONS
-          : TARGET_FREE_INSTRUCTIONS
-      } ${UNTRUSTED_CONTENT_INSTRUCTIONS}`,
+          : TARGET_FREE_INSTRUCTIONS,
+        ...(packageIndex === undefined ? [] : [packageIndex]),
+        UNTRUSTED_CONTENT_INSTRUCTIONS,
+      ].join(" "),
     },
     session === undefined
       ? undefined
@@ -269,6 +289,24 @@ export const createServer = (
   const analysis = source.kind === "session" ? source.session : source.analysis;
   const environment = snapshotEnvironment(options.environment ?? process.env);
   const delivery = selectToolResultDelivery(environment, options.delivery);
+  const toolSurface = parseMcpToolSurface(
+    environment.REA_MCP_TOOL_SURFACE,
+    environment.REA_MCP_TOOL_PACKAGES,
+  );
+  if (!toolSurface.ok) throw toolSurface.error;
+  const modLoad =
+    options.loadMods === true
+      ? loadMods(
+          environment,
+          new Set(TOOL_PACKAGE_CATALOG.packages.map(({ id }) => id)),
+        )
+      : { directory: "", mods: [], errors: [] };
+  const toolPackageCatalog = buildToolPackageCatalogWithMods(
+    modLoad.mods.map(({ package: descriptor }) => descriptor),
+  );
+  const loadedMods = new Map(
+    modLoad.mods.map((mod) => [mod.manifest.id, mod] as const),
+  );
   const evmInterface =
     options.evmInterface ?? evmInterfaceModule.create(environment);
   const sqliteDatabase =
@@ -305,10 +343,18 @@ export const createServer = (
   };
   const startedAt = new Date().toISOString();
   const logger = options.logger ?? silentLogger;
+  for (const error of modLoad.errors)
+    logger.warn(
+      { path: error.path, reason: error.reason },
+      "Skipped a REA mod manifest",
+    );
   const server = createMcpServer(
     session,
     delivery,
     selectCompactInputSchemaPresentation(environment),
+    session !== undefined && toolSurface.value.mode === "packages"
+      ? renderToolPackageIndex(toolPackageCatalog)
+      : undefined,
   );
   const android =
     options.androidAnalysis ?? createAndroidAnalysisProvider(environment);
@@ -377,6 +423,8 @@ export const createServer = (
     fridaInstrumentation,
   );
   const toolLogger = logger.child({ layer: "server" });
+  const modHost =
+    session === undefined ? undefined : new McpModHost(server, toolLogger);
   const {
     evidenceById,
     activeTarget,
@@ -419,10 +467,21 @@ export const createServer = (
         "Provider cleanup failed during server shutdown",
       );
     });
+    if (modHost !== undefined)
+      void modHost.closeAll().catch((cause: unknown) => {
+        logger.error(
+          { error: cause instanceof Error ? cause.message : String(cause) },
+          "Mod cleanup failed during server shutdown",
+        );
+      });
   };
   const closeServer = server.close.bind(server);
   server.close = async () => {
-    const results = await Promise.allSettled([closeServer(), closeProviders()]);
+    const results = await Promise.allSettled([
+      closeServer(),
+      closeProviders(),
+      ...(modHost === undefined ? [] : [modHost.closeAll()]),
+    ]);
     for (const result of results)
       if (result.status === "rejected") throw result.reason;
   };
@@ -481,6 +540,13 @@ export const createServer = (
   registerObservationTools(toolContext);
   registerGuidedPrompts(server, analysis, session);
   if (session !== undefined) {
+    const toolPackageSurface = createToolPackageSurface(server, {
+      mode: toolSurface.value.mode,
+      pinned: toolSurface.value.pinned,
+      catalog: toolPackageCatalog,
+      ...(modHost === undefined ? {} : { modHost }),
+      mods: loadedMods,
+    });
     registerSessionTools(server, session, toolLogger, {
       ...selectedOptions,
       artifactResources,
@@ -489,8 +555,20 @@ export const createServer = (
         : { availabilityPolicy: availability.policy }),
       androidAnalysisAvailability: (signal) =>
         android.inspectAvailability(signal),
+      advertisedTool: (name) => toolPackageSurface.isAdvertised(name),
       startedAt,
     });
+    installToolPackageSurface(
+      server,
+      {
+        mode: toolSurface.value.mode,
+        pinned: toolSurface.value.pinned,
+        catalog: toolPackageCatalog,
+        ...(modHost === undefined ? {} : { modHost }),
+        mods: loadedMods,
+      },
+      toolPackageSurface,
+    );
   }
   return server;
 };

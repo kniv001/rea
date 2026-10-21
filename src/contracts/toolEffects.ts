@@ -632,6 +632,10 @@ export const TOOL_EFFECTS: Readonly<Record<string, ToolEffects>> = {
   record_unknown: effects({ mutatesSession: true, idempotent: false }),
   update_unknown: effects({ mutatesSession: true, idempotent: false }),
   verify_unknown_resolution: effects(),
+  list_tool_packages: effects(),
+  inspect_tool_package: effects(),
+  open_tool_package: effects({ mutatesSession: true }),
+  close_tool_package: effects({ mutatesSession: true }),
 };
 
 /** Derive MCP annotations without tool-name or tool-family heuristics. */
@@ -673,6 +677,10 @@ export const annotationsFromEffects = (
 export const TARGET_CONTENT_FREE_TOOLS: ReadonlySet<string> = new Set([
   "export_evidence_bundle",
   "record_unknown",
+  "list_tool_packages",
+  "inspect_tool_package",
+  "open_tool_package",
+  "close_tool_package",
 ]);
 
 /**

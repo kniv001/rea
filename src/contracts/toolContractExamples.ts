@@ -52,6 +52,9 @@ export const TOOL_EXAMPLE_OVERRIDES: Readonly<
   trace_call_path: { start: "0x1000", goal: "0x1100" },
   trace_native_ui_action: { action: "buildTapped:" },
   open_binary: { path: "/tmp/fixture" },
+  inspect_tool_package: { package_id: "vmp" },
+  open_tool_package: { package_id: "native-analysis" },
+  close_tool_package: { package_id: "native-analysis" },
   export_evidence_bundle: { path: "/tmp/evidence.json" },
   get_evidence_bundle: {
     detail: "summary",

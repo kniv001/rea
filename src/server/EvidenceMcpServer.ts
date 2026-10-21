@@ -62,6 +62,8 @@ const hasAdvertisedInputJsonSchema = (value: unknown): boolean => {
 
 /** Bind oversized MCP error recovery to this server's Evidence ledger. */
 export class EvidenceMcpServer extends McpServer {
+  private readonly toolHandles = new Map<string, RegisteredTool>();
+
   constructor(
     info: Implementation,
     options: McpServerOptions,
@@ -74,6 +76,16 @@ export class EvidenceMcpServer extends McpServer {
       | undefined = undefined,
   ) {
     super(info, options);
+  }
+
+  /** Registered handle for one tool, including disabled tools. */
+  toolHandle(name: string): RegisteredTool | undefined {
+    return this.toolHandles.get(name);
+  }
+
+  /** Every registered tool name, including tools disabled by the active surface. */
+  registeredToolNames(): readonly string[] {
+    return [...this.toolHandles.keys()];
   }
 
   /**
@@ -114,13 +126,15 @@ export class EvidenceMcpServer extends McpServer {
               compactAdvertisedInputSchema(projected, budget).schema,
           )
         : undefined;
-    return super.registerTool(
+    const registered = super.registerTool(
       name,
       (inputSchema === undefined
         ? config
         : { ...config, inputSchema }) as never,
       callback as never,
     );
+    this.toolHandles.set(name, registered);
+    return registered;
   }
 
   /** Preserve the SDK transport lifecycle while retaining oversized errors. */

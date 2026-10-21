@@ -94,6 +94,7 @@ export const startMcpTransport = async (
             logger: serverContext.logger,
             environment: serverContext.environment,
             delivery: serverContext.delivery,
+            loadMods: true,
             ...optionalProviders,
             androidAnalysis: android,
           },

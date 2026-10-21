@@ -155,6 +155,7 @@ export interface LifecycleToolRegistration {
   readonly androidAnalysisAvailability: (
     signal: AbortSignal,
   ) => Promise<ProviderAvailability>;
+  readonly advertisedTool?: (name: string) => boolean;
   readonly closeProcessResources: () => Promise<Result<null, AnalysisError>>;
 }
 
@@ -169,6 +170,7 @@ const registerLifecycleTools = (
     startedAt,
     availabilityPolicy,
     androidAnalysisAvailability,
+    advertisedTool,
   } = registration;
   registerOpenLifecycleTool(registration, artifactResources);
   registerCloseLifecycleTool(registration);
@@ -179,6 +181,7 @@ const registerLifecycleTools = (
     startedAt,
     availabilityPolicy,
     androidAnalysisAvailability,
+    ...(advertisedTool === undefined ? {} : { advertisedTool }),
   });
 };
 
@@ -238,6 +241,7 @@ export interface SessionToolOptions {
   readonly androidAnalysisAvailability?: (
     signal: AbortSignal,
   ) => Promise<ProviderAvailability>;
+  readonly advertisedTool?: (name: string) => boolean;
 }
 
 const registerContextTools = (
@@ -317,6 +321,9 @@ export const registerSessionTools = (
       ),
       androidAnalysisAvailability:
         options.androidAnalysisAvailability ?? missingAndroidAvailability,
+      ...(options.advertisedTool === undefined
+        ? {}
+        : { advertisedTool: options.advertisedTool }),
       closeProcessResources: async () => {
         try {
           await processResources.retryCleanup();

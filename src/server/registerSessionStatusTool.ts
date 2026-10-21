@@ -29,6 +29,8 @@ export interface SessionStatusToolOptions {
   readonly androidAnalysisAvailability: (
     signal: AbortSignal,
   ) => Promise<ProviderAvailability>;
+  /** Limits inventory to the tools the active surface currently advertises. */
+  readonly advertisedTool?: (name: string) => boolean;
 }
 
 /** Register the read-only provider and target status operation. */
@@ -42,6 +44,7 @@ export const registerSessionStatusTool = (
     startedAt,
     availabilityPolicy,
     androidAnalysisAvailability,
+    advertisedTool,
   } = options;
   server.registerTool(
     contract.name,
@@ -72,6 +75,8 @@ export const registerSessionStatusTool = (
           androidAnalysisAvailability: androidAvailability,
         },
         clientFeatures,
+      ).filter(
+        ({ name }) => advertisedTool === undefined || advertisedTool(name),
       );
       const serverIdentity = createServerIdentity({
         startedAt,

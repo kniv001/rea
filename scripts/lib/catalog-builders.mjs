@@ -121,6 +121,11 @@ export const toolFamilyCatalog = (sources) => {
       surface: "session",
       contracts: sources.sessionContracts.SESSION_TOOL_CONTRACTS,
     },
+    {
+      id: "tool-packages",
+      surface: "tool-package",
+      contracts: sources.toolPackageContracts.TOOL_PACKAGE_TOOL_CONTRACTS,
+    },
   ].map(({ id, surface, contracts }) => ({
     id,
     surface,

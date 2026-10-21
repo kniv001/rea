@@ -282,10 +282,23 @@ registrations, reports their command vectors as aligned, stale, missing, or
 invalid, and keeps live-server state `unknown` unless the active connection
 supplies identity.
 
-`tools/list` returns the complete canonical tool inventory, including tools that
-are currently unavailable. Opening or closing a target or observing a provider
-health transition leaves that catalog unchanged and does not emit
-`notifications/tools/list_changed`.
+With the default `REA_MCP_TOOL_SURFACE=full`, `tools/list` returns the complete
+canonical tool inventory, including tools that are currently unavailable.
+Opening or closing a target or observing a provider health transition leaves
+that catalog unchanged and does not emit `notifications/tools/list_changed`.
+
+With `REA_MCP_TOOL_SURFACE=packages`, `tools/list` starts with only the four
+package gateways (`list_tool_packages`, `inspect_tool_package`,
+`open_tool_package`, `close_tool_package`). Opening a package enables its
+members and emits `notifications/tools/list_changed`; closing it hides them
+again. The canonical contracts, schemas, validation, Effects, and Evidence
+semantics are unchanged. In this mode `binary_session.tool_availability` is
+scoped to the currently advertised surface, so its group-name union no longer
+matches the complete canonical catalog. Use `list_tool_packages` and
+`inspect_tool_package` to discover unopened packages. External packages may be
+backed by local MCP mod manifests: opening one starts that server and registers
+namespaced proxy tools. See [tool packages](tool-packages.md) and
+[Fabric-style MCP mods](mod-packages.md).
 
 Call `binary_session` with `{}` and read `result.tool_availability` to choose a
 callable operation for the current target, provider, host, and negotiated client

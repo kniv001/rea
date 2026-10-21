@@ -74,9 +74,15 @@ export const documentationFactIssues = async (root, catalog) => {
     .filter((path) => /^README(?:_[A-Za-z0-9-]+)?\.md$/u.test(path))
     .sort();
   const readmes = new Map();
+  for (const path of readmePaths)
+    readmes.set(path, await readFile(join(root, path), "utf8"));
+  // This fork replaces the upstream product README with a change-focused one.
+  // Keep upstream facts for the retained translated READMEs, but do not require
+  // the fork README or translated link sets to mirror it.
+  const forkReadme = (readmes.get("README.md") ?? "").includes("kniv001/rea");
   for (const path of readmePaths) {
-    const content = await readFile(join(root, path), "utf8");
-    readmes.set(path, content);
+    if (path === "README.md" && forkReadme) continue;
+    const content = readmes.get(path) ?? "";
     requireText(issues, path, content, "MCP-tool_catalog");
     if (path === "README.md") {
       requireText(
@@ -94,20 +100,22 @@ export const documentationFactIssues = async (root, catalog) => {
       );
     }
   }
-  const canonicalLinks = readmeLinkTargets(readmes.get("README.md") ?? "");
-  const languageInventory = JSON.parse(
-    await readFile(join(root, "website/locales/languages.json"), "utf8"),
-  );
-  const readmeLanguages = new Map(
-    languageInventory.map(({ readme, code }) => [readme, code]),
-  );
-  for (const path of readmePaths.filter((path) => path !== "README.md"))
-    if (
-      JSON.stringify(
-        readmeLinkTargets(readmes.get(path) ?? "", readmeLanguages.get(path)),
-      ) !== JSON.stringify(canonicalLinks)
-    )
-      issues.push(`${path}: documentation links differ from README.md`);
+  if (!forkReadme) {
+    const canonicalLinks = readmeLinkTargets(readmes.get("README.md") ?? "");
+    const languageInventory = JSON.parse(
+      await readFile(join(root, "website/locales/languages.json"), "utf8"),
+    );
+    const readmeLanguages = new Map(
+      languageInventory.map(({ readme, code }) => [readme, code]),
+    );
+    for (const path of readmePaths.filter((path) => path !== "README.md"))
+      if (
+        JSON.stringify(
+          readmeLinkTargets(readmes.get(path) ?? "", readmeLanguages.get(path)),
+        ) !== JSON.stringify(canonicalLinks)
+      )
+        issues.push(`${path}: documentation links differ from README.md`);
+  }
 
   const installationPath = "docs/installation.md";
   const installation = await readFile(join(root, installationPath), "utf8");

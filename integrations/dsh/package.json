@@ -1,0 +1,16 @@
+{
+  "name": "rea-dsh-bundle",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Mounts the local REA MCP server into DeepSeek Harness.",
+  "type": "module",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "files": [
+    "cordis.patch.yml",
+    "README.md"
+  ]
+}

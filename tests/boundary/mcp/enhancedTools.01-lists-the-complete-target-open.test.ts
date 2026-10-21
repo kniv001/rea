@@ -6,6 +6,7 @@ import type { AnalysisOperationPort } from "../../../src/application/AnalysisPro
 import { MANAGED_WORKFLOW_TOOL_CONTRACTS } from "../../../src/contracts/managed/managedWorkflowToolContracts.js";
 import { ENHANCED_TOOL_CONTRACTS } from "../../../src/contracts/enhancedToolContracts.js";
 import { SESSION_TOOL_CONTRACTS } from "../../../src/contracts/sessionToolContracts.js";
+import { TOOL_PACKAGE_TOOL_CONTRACTS } from "../../../src/contracts/toolPackageToolContracts.js";
 import { TOOL_CONTRACTS } from "../../../src/contracts/toolContracts.js";
 import type {} from "../../../src/domain/jsonValue.js";
 import { createServer } from "../../../src/server/createServer.js";
@@ -221,6 +222,7 @@ describe("enhanced MCP tools", () => {
     expect(listed.tools).toHaveLength(
       TOOL_CONTRACTS.length -
         SESSION_TOOL_CONTRACTS.length -
+        TOOL_PACKAGE_TOOL_CONTRACTS.length -
         MANAGED_WORKFLOW_TOOL_CONTRACTS.length,
     );
     expect(

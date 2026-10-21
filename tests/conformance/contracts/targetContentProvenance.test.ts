@@ -18,7 +18,11 @@ describe("target-content provenance audit", () => {
         returnsTargetContent: !TARGET_CONTENT_FREE_TOOLS.has(contract.name),
       });
     expect([...TARGET_CONTENT_FREE_TOOLS].sort()).toEqual([
+      "close_tool_package",
       "export_evidence_bundle",
+      "inspect_tool_package",
+      "list_tool_packages",
+      "open_tool_package",
       "record_unknown",
     ]);
   });

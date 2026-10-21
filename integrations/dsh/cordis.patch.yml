@@ -1,0 +1,22 @@
+# DeepSeek Harness profile patch: mount REA as one MCP mod.
+#
+# Apply with the host's normal patch mechanism (for example a --patch overlay
+# or the profile/home cordis.patch.yml). Replace `rea` with an absolute command
+# when the CLI is not on PATH, for example:
+#   command: node
+#   args: ['D:/vs/rea/scripts/rea.mjs', 'mcp']
+- insert:
+    - id: mcp-rea
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: rea
+        transport: stdio
+        command: rea
+        args: ['mcp']
+        env:
+          REA_MCP_TOOL_SURFACE: packages
+          REA_MODS_DIR: '~/.rea/mods'
+          # REA requires Ghidra 12.1.x; point this at the extracted release.
+          # GHIDRA_INSTALL_DIR: '/opt/ghidra_12.1.4_PUBLIC'
+          # JAVA_HOME: '/path/to/jdk-21'
+        toolCallTimeoutMs: 120000

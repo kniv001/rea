@@ -1,372 +1,109 @@
-<div align="center">
+# REA Fork — 插件化 MCP 工具包 / Fabric 式 MCP 模组加载器
 
-**English** · [简体中文](README_zh.md) · [繁體中文](README_zh-TW.md) · [日本語](README_ja.md) · [한국어](README_ko.md) · [Türkçe](README_tr.md) · [Русский](README_ru.md) · [Tiếng Việt](README_vi.md) · [ไทย](README_th.md) · [Deutsch](README_de.md) · [Español](README_es.md) · [Français](README_fr.md) · [Українська](README_uk.md) · [Polski](README_pl.md) · [Português (Brasil)](README_pt-BR.md) · [العربية](README_ar.md) · [فارسی](README_fa.md) · [Bahasa Indonesia](README_id.md) · [Italiano](README_it.md)
+本仓库是 **`kniv001/rea`** 的个人 fork，基于上游 [`morluto/rea`](https://github.com/morluto/rea) 6.4.0。它不跟随上游 README、翻译版、发布流程或贡献流程。
 
-# REA: Reverse Engineer Anything
+**本 README 只记录我们自己的改动与新增内容。** REA 原有的产品介绍、安装向导、功能清单和截图不再重复；上游能力本身仍然保留在代码和 `docs/` 中。
 
-### One MCP for reverse engineering across binaries, applications, and runtime behavior.
+> English: this fork keeps upstream REA's core tools, Evidence, restrictions, and verification. This README documents only the fork's modifications and additions.
 
-**See a feature you like. Understand how it works, down to the binary level.**
+## 改了什么
 
-[![npm version](https://img.shields.io/npm/v/rea-agents?style=flat-square&color=cb3837)](https://www.npmjs.com/package/rea-agents)
-[![MCP tool catalog](https://img.shields.io/badge/MCP-tool_catalog-5c4ee5?style=flat-square)](docs/mcp-contracts.md#generated-catalog)
-[![Node.js requirements](https://img.shields.io/badge/Node.js-requirements-339933?style=flat-square&logo=nodedotjs&logoColor=white)](#what-you-can-analyze)
-[![skills.sh](https://skills.sh/b/morluto/rea?style=flat-square)](https://skills.sh/morluto/rea/reverse-engineer-anything)
-[![MIT license](https://img.shields.io/badge/license-MIT-f4c430?style=flat-square)](LICENSE)
-[![Discord](https://img.shields.io/discord/1556595354999332884?logo=discord&logoColor=white&label=Discord&color=5865F2)](https://discord.gg/GkcryMnJDM)
+### 1. 插件化/模组化工具包（渐进披露）
 
-<a href="https://trendshift.io/repositories/82054?utm_source=repository-badge&amp;utm_medium=badge&amp;utm_campaign=badge-repository-82054" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/repositories/82054" alt="morluto%2Frea | Trendshift" width="250" height="55"/></a>
+- 新增 `REA_MCP_TOOL_SURFACE=packages`。
+- 默认仍为 `full`（完整工具目录）；`packages` 启动时只暴露 4 个包网关：
+  - `list_tool_packages`
+  - `inspect_tool_package`
+  - `open_tool_package`
+  - `close_tool_package`
+- `open` 后才通过 `notifications/tools/list_changed` 放出该包的具体工具，`close` 收回。
+- 包分类：`core`、`native-analysis`、`artifacts`、`android`、`web`、`workflows`、`session-evidence`、`process-and-network`、`frida-instrumentation`、`ghidra`/`ida`/`hopper`（provider）、`vmp`/`mt-manager`/`phone-mcp-bridge`（external）。
+- external 包只暴露简介、边界、profiles、usage，不暴露具体脚本或桥工具。
+- `packages` 模式下 `binary_session.tool_availability` 只报告当前已放出的表面。
+- 包成员完整性在启动时校验；新增工具漏归类会失败。
 
-**[Website](https://rea.tools/) · [Guides](https://rea.tools/guides/) · [Showcases](https://rea.tools/showcase/)**
+实现：`src/composition/toolPackageCatalog.ts`、`src/server/toolPackageSurface.ts`、`src/contracts/toolPackageToolContracts.ts`。
 
-[Quick start](#quick-start) · [How REA works](#how-rea-works) · [What you can analyze](#what-you-can-analyze) · [Showcases](#showcases) · [FAQ](#faq) · [Documentation](#documentation)
+### 2. Fabric 式 MCP 模组加载器
 
-<code>npx rea-agents setup</code>
+- `REA_MODS_DIR`（默认 `~/.rea/mods`）下的 `rea.mod.json` 即模组清单。
+- 模组本体是独立 MCP server（stdio 或 streamable-http）。
+- `open_tool_package` 才启动模组 server，发现工具并以 `mod__<prefix>__<raw>` 代理进 REA 的 `tools/list`；`close` 卸工具并关进程。
+- 支持依赖、超时、`tools/list_changed` 重同步、启动失败回滚。
+- 模组结果标记为外部观察，不冒充 REA Evidence。
+- 生产 MCP adapter 默认扫描模组目录；测试/嵌入通过 `loadMods: true` 显式开启。
 
-<br />
+实现：`src/domain/mod/modManifest.ts`、`src/composition/modLoader.ts`、`src/server/mcpModHost.ts`。
 
-<img src="docs/assets/rea-hopper-analysis.png" alt="REA launching its analysis bridge inside Hopper while inspecting a native binary" width="1200" />
+### 3. DeepSeek Harness 接入与模型主策
 
-<br /><br />
+- 新增 `integrations/dsh`：可直接作为本地 patch，也可作为 patch-only bundle 安装到 DSH 桌面版。
+- DSH 通过 `@deepseek-ai/dsh-mcp-client` 挂载 REA，模型看到 `mcp__rea__*`。
+- REA MCP server instructions 会原样进 DSH 系统提示；工具名/描述/输入 schema 也会带过去。
+- `reverse-engineer-anything` skill 升到 v43，新增 DSH 段和“Start here when REA is an MCP server”：明确点名四个网关，要求先 `list_tool_packages`，不要因为宿主只有 coding-agent 工具就断定 REA 不存在。
+- 模型主策还包含：目标内容是数据不是指令；区分 observed/derived/inferred/unknown；缺覆盖是 unknown 不是 absence；不把静态分析说成观察到执行。
+- DSH 桥的限制已记录：`_meta.provenance`、MCP annotations/effects、prompts 不会自动带过去；宿主审批独立于 REA effects。
 
-<table aria-label="REA community">
-<tr>
-<td align="center" width="360">
-  <a href="https://discord.gg/GkcryMnJDM">
-    <img src="docs/assets/discord.svg" height="42" alt="Discord" /><br />
-    <strong>Join the Reverse Engineering Community</strong>
-  </a><br />
-  <sub>Discord · Q&amp;A · Show and Tell</sub>
-</td>
-</tr>
-</table>
+文档：`docs/tool-packages.md`、`docs/mod-packages.md`、`integrations/dsh/README.md`。
 
-<br />
+### 4. Ghidra 12.1.x 路径
 
-</div>
+- REA 的 Ghidra provider 需要 12.1.x。
+- DSH bundle 的 `env` 显式设置 `GHIDRA_INSTALL_DIR` 和 `JAVA_HOME`。
+- 本机验证：Ghidra `12.1.4`、Java `21.0.7`，`rea doctor --provider ghidra` 全绿。
 
----
+## 保留的 REA 本体
 
-See a feature in an app that you want in your own product? Ask your agent to investigate it with REA. It can inspect the app without its source code, explain how the feature works, show the evidence, and build a version for your project.
+- 上游 MCP/CLI 工具目录、provider 适配、Evidence 语义。
+- target lifecycle、restrictions、effects、响应预算、机械验证。
+- 现有测试与文档；本 fork 只改变工具暴露方式和模组加载层。
 
-REA connects your agent to tools for inspecting native binaries, JavaScript and Electron apps, .NET assemblies, and websites. You can also use the same tools from your terminal. Analysis runs locally, and results include the evidence and limitations behind each conclusion.
+## 快速开始
 
-Setup registers REA with your agent and installs matching workflow instructions. Native analysis can use an existing Hopper, Ghidra, or IDA installation; setup can optionally install Hopper with approval. Static JavaScript analysis needs no native analysis engine.
-
-> **[Visit the REA website](https://rea.tools/)** for setup instructions, illustrated guides, and real case studies.
-
-## Quick start
-
-### Set up your agent
-
-With Node.js and npm installed, run:
-
-```bash
-npx rea-agents setup
+```powershell
+cd D:\vs\rea
+npm ci
+npm run build:cached
+npm run compile   # 更新 dist/mcp/main-*.js（MCP 实际运行 bundle）
 ```
 
-Choose your agents, review the proposed changes, and approve them. Setup adds
-REA's MCP server and matching workflow instructions, with backups of existing
-configuration. Restart your agent afterward.
+以 `packages` 模式运行 MCP：
 
-Setup supports Claude Code, Codex, Cursor, Gemini CLI, Grok Build and
-[other agents](docs/installation.md#supported-agents). See
-[installation and setup](docs/installation.md) for provider configuration and
-manual MCP registration.
-
-### Ask your agent
-
-```text
-Understand how search works in the Notes app, show me the evidence, and build a
-similar feature for my project.
+```powershell
+$env:REA_MCP_TOOL_SURFACE = "packages"
+node scripts\rea.mjs mcp
 ```
 
-Replace Notes with your target app and the feature you want to understand.
+DSH 桌面版：
 
-### Use the terminal
+1. 把 REA skill 复制到 DSH 扫描的根：
 
-Inspect an extracted JavaScript/Electron app directory or ASAR:
-
-```bash
-npx -y rea-agents@latest analyze-javascript-application /absolute/path/to/app --json
+```powershell
+Copy-Item -Recurse -Force "D:\vs\rea\skills\reverse-engineer-anything" `
+  "$env:USERPROFILE\.agents\skills\"
 ```
 
-The result includes modules, imports, Electron boundaries and their evidence.
-Replace the path with your target, such as `"D:/apps/example"` on Windows.
+2. 安装 `integrations/dsh`（或本机 `D:\vs\rea-dsh-bundle`）为本地 bundle，启用后重启。
+3. 新开会话，模型应看到 `mcp__rea__*` 和 `reverse-engineer-anything` skill。
 
-To install the `rea` command for regular use:
+## 验证
 
-```bash
-npm install --global rea-agents
-rea --help
+```powershell
+npm run typecheck
+npx vitest run --project mcp-boundary
+npx vitest run --project composition
+npm run docs:check
+npm run verify:module-boundaries
 ```
 
-For native analysis, configure a provider first. See the
-[CLI and Evidence guide](docs/cli.md) for native commands, provider selection,
-snapshots and scripting.
+## 边界
 
-### Update REA
+- 外部模组是本地受信代码，以当前用户权限运行；REA 不做沙箱。
+- `open_tool_package` 是同意边界；加载 manifest 不启动进程。
+- 不支持 manifest 热替换；模组工具列表变化会重同步，失败时重开包。
+- DSH 会丢弃每条结果的 `_meta.provenance`，也不映射 MCP annotations/effects；需要硬门控时在 DSH 侧加 `tools/pre-execute` guard。
+- skill 不是 MCP server 的一部分；没装到宿主技能根时，宿主只看到 server instructions 和工具描述。
 
-REA changes quickly, and new releases include frequent bug fixes. Keep your
-installation up to date.
+## 上游
 
-For a CLI installed with `npm install --global` or `bun add --global`:
-
-```bash
-rea update
-```
-
-Bun global updates require Bun 1.2.17 or later. With an older Bun release,
-upgrade Bun manually before running `rea update`.
-
-To refresh your agent registrations and skill, run the setup command printed
-by the update.
-
-If you use `npx`, update your agent setup with:
-
-```bash
-npx rea-agents@latest setup
-```
-
-Review the setup changes and restart your agent. For one-off CLI commands,
-use `npx rea-agents@latest` followed by the command. With Bun, use
-`bunx rea-agents@latest` in place of `npx rea-agents@latest`.
-
-## How REA works
-
-Your agent calls REA through MCP to inspect the target and trace relevant code.
-REA returns findings with their evidence. The agent uses them to ask follow-up
-questions, explain the behavior, or write and test an implementation.
-CLI commands use the same workflows.
-
-![REA investigation flow: your agent asks about a local target, REA inspects and traces it using analysis tools, and the agent uses the returned code, references and unknowns to explain, implement and test.](website/public/assets/figures/rea-investigation-flow.svg)
-
-[Open the full-size figure](website/public/assets/figures/rea-investigation-flow.svg).
-
-<a id="current-status"></a>
-
-## What you can analyze
-
-REA requires Node.js 22.x (>=22.19), 24.x (>=24.11), or 26+, plus npm.
-Additional tools and host support depend on the target:
-
-| Target                 | What REA returns                                                                     | Requirements and guide                                                                                                                |
-| ---------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
-| Native binaries        | Pseudocode, assembly, strings, symbols, calls and references                         | Hopper, Ghidra or IDA; [native analysis](https://rea.tools/guides/native/)                                                            |
-| Offline ELF layout     | Sections, segments, original symbols/relocations and static mitigation candidates    | Caller-supplied pwntools on Linux x64; [binary diagnostics](docs/binary-diagnostics.md)                                               |
-| Go binaries            | Embedded compiler version, modules, replacements and build settings                  | Built-in static ELF/PE/thin Mach-O inspection; no Go installation required                                                            |
-| WASM artifact          | Validation, sections, exact import/export WAT forms and decoded WAT                  | Caller-supplied WABT 1.0.42; `inspect_wasm_artifact`                                                                                  |
-| EVM bytecode           | Dispatch selectors, byte offsets, inferred arguments and mutability                  | Local raw/hex carrier on Linux x64; [offline EVM guide](docs/evm-bytecode.md)                                                         |
-| SQLite databases       | Tables, columns, indexes, views, triggers and selected ordinary-table rows           | Local database/WAL snapshot; Node.js 24.x >=24.15 or 26+ with native SQLite limits                                                    |
-| Recorded Linux crashes | Raw notes, every recorded thread's registers/signals and optional mapping candidates | Caller-supplied pwntools on Linux x64; optional GDB/pwndbg; [recorded crashes](docs/recorded-crashes.md)                              |
-| JavaScript / Electron  | Modules, imports, source maps, routes, IPC and native add-on relationships           | Node.js and npm; [application analysis](https://rea.tools/guides/javascript/)                                                         |
-| Websites               | Page structure, scripts, network observations and requested screenshots              | A Chrome-family browser; [browser analysis](https://rea.tools/guides/browser/)                                                        |
-| Saved network captures | Requests, responses, exposed payloads and source locations                           | HAR or Fiddler Everywhere SAZ; mitmdump on Linux for native mitmproxy; [capture guide](docs/web-network-captures.md)                  |
-| .NET assemblies        | Metadata, CIL instructions, declared native dependencies and build comparisons       | None (static only); [managed-code guide](docs/managed-code-analysis.md)                                                               |
-| Android APKs           | Manifest declarations, classes, decompiled methods and references                    | Headless JADX and a full JDK on Linux/macOS/Windows x64; [Android guide](docs/android-analysis.md)                                    |
-| Android devices        | Devices, packages, processes, logs, dumps, screen captures, and APK/file transfers   | Caller-supplied adb (emulator or hardware); [ADB guide](docs/adb-device-analysis.md)                                                  |
-| JEB projects           | Engine-backed project units, artifact digests and type/method pseudo-code            | A caller-started JEB client serving MCP, selected with REA_JEB_MCP_URL; [JEB guide](docs/jeb-analysis.md)                             |
-| Android resources      | Decoded manifest, string tables, locales and version facts                           | Caller-supplied Apktool launcher; [resource guide](docs/apktool-resource-analysis.md)                                                 |
-| Flutter apps           | Dart snapshot hash, per-ABI library digests and engine build provenance              | None (static APK parsing); [Flutter guide](docs/flutter-analysis.md)                                                                  |
-| Firmware               | Regions, extraction results and native-analysis handoffs                             | Binwalk / Unblob on Linux; [firmware guide](docs/firmware-analysis.md)                                                                |
-| Recorded packets       | Selected fields, repeated values, filters and decode-as rules                        | Linux: TShark 4.x + prlimit; [capture guide](docs/packet-captures.md)                                                                 |
-| Packet summaries       | Endpoints, DNS, TLS SNI, protocol distribution and HTTP requests                     | Caller-supplied tshark and capinfos (Linux-verified); [pcap guide](docs/pcap-analysis.md)                                             |
-| Recorded logic signals | Decoder annotations, sample ranges and diagnostics                                   | Linux: sigrok-cli 0.7.2 + prlimit; [signal recordings](docs/signal-recordings.md)                                                     |
-| Packages and resources | File inventories, digests, plists, Apple bundle anatomy and extracted resources      | [Artifact and JavaScript guide](docs/javascript-artifact-reconstruction.md), [Apple applications](docs/apple-application-analysis.md) |
-| Process behavior       | Terminal output, interactions, exit and filesystem observations, and run comparisons | Linux/macOS with a native PTY; [process capture](docs/process-capture.md)                                                             |
-
-Static JavaScript and .NET inspection read the supplied files without running
-the application. Runtime capture runs or interacts with the selected target
-using your user permissions; each runtime guide describes its effects.
-
-<a id="choosing-a-deep-analysis-provider"></a>
-
-Native formats and host support vary by provider. See
-[Hopper and Ghidra setup](docs/installation.md#hopper), the
-[IDA guide](docs/ida-provider.md) (including an optional native MCP bridge), and
-[experimental Windows Ghidra support](docs/windows-ghidra-p0.md).
-Ghidra also supports [16-bit DOS analysis](docs/ghidra-dos.md).
-For large binaries, raise the provider's startup deadline with
-`REA_GHIDRA_STARTUP_TIMEOUT_MS` or `REA_HOPPER_STARTUP_TIMEOUT_MS`.
-For provider selection, see the [CLI guide](docs/cli.md#choose-a-provider).
-Check [release availability](docs/installation.md#released-package-and-main)
-for features added since the latest npm release.
-
-## Showcases
-
-[![Illustrations of the DX-Ball sound-pan, Notion clipboard-bridge, and TH04 bullet-ring showcases](docs/assets/rea-showcases.png)](https://rea.tools/showcase/)
-
-### DX-Ball: reconstruct a sound-pan calculation
-
-Follow a sound call into its position-to-pan helper, inspect the instructions,
-and turn incomplete pseudocode into C. The reconstruction passes 3,205
-original-x86 cases and reproduces all 63 compiled function bytes.
-
-[Read the case study](https://rea.tools/showcase/dx-ball/) ·
-[Reconstruction repository](https://github.com/N0zoM1z0/dx-ball)
-
-### Notion: trace the Electron clipboard bridge
-
-Find the renderer's clipboard API, follow it through preload and IPC into the
-main process, and inspect the rich clipboard format.
-
-[Read the case study](https://rea.tools/showcase/notion/)
-
-### TH04: recover a DOS bullet-ring calculation
-
-Inspect the original PC-98 game's 16-bit instructions, recover the fixed and
-aimed angle calculations, and compare the reconstructed C++ with the
-historical compiler output.
-
-[Read the case study](https://rea.tools/showcase/th04/) ·
-[Reconstruction repository](https://github.com/N0zoM1z0/th04)
-
-If you've used REA on something interesting, we'd love to see it. Share your
-case in an [issue](https://github.com/morluto/rea/issues) or a
-[pull request](https://github.com/morluto/rea/pulls), including the target,
-your question, how REA helped, and what you found.
-
-## FAQ
-
-<details>
-<summary><strong>Which agents can use REA?</strong></summary>
-
-Any agent that supports local MCP servers. Setup configures the
-[supported agents](docs/installation.md#supported-agents); other clients can use
-[manual MCP registration](docs/installation.md#mcp-registry).
-
-</details>
-
-<details>
-<summary><strong>Do I need Hopper, Ghidra or IDA?</strong></summary>
-
-Deep native analysis uses one of them. Static JavaScript and .NET inspection
-work without a native analysis engine. Setup can install Hopper after approval;
-Ghidra and IDA use your existing installations. See [provider setup](docs/installation.md#hopper).
-
-</details>
-
-<details>
-<summary><strong>Do I need to start Hopper first?</strong></summary>
-
-REA starts Hopper when an operation needs it. On macOS, a first-run dialog may
-ask you to choose demo mode or activate your license. Complete that prompt in the
-same user session before your first CLI/MCP operation or unattended job. Open
-Hopper manually if needed. See
-[Hopper startup and troubleshooting](docs/installation.md#launcher-paths-and-troubleshooting).
-
-</details>
-
-<details>
-<summary><strong>What does installing the skill from skills.sh do?</strong></summary>
-
-The skill supplies investigation instructions for your agent. Use `npx rea-agents setup`
-to register REA's MCP server and install the matching instructions, then restart
-your agent. See [skill-only installation](docs/installation.md#skill-only-installation).
-
-</details>
-
-<details>
-<summary><strong>What code does REA return?</strong></summary>
-
-Native analysis returns pseudocode and assembly. JavaScript/Electron analysis
-recovers modules and their relationships. Your agent uses these findings to
-write and test an implementation; the [showcases](#showcases) give worked examples.
-
-</details>
-
-<details>
-<summary><strong>Does REA upload my app?</strong></summary>
-
-REA analyzes targets locally. Your agent receives the tool results, and its
-model provider has its own data policy.
-
-</details>
-
-<details>
-<summary><strong>What should I do if I hit a bug?</strong></summary>
-
-Update first; a recent release may already fix it.
-
-For a CLI installed with `npm install --global` or `bun add --global`:
-
-```bash
-rea update
-```
-
-For agent setup through `npx`:
-
-```bash
-npx rea-agents@latest setup
-```
-
-If you're using an agent, complete the [setup refresh](#update-rea) and restart
-it. Retry the same task. If the problem persists, [open an issue](https://github.com/morluto/rea/issues)
-with your REA version, target type, steps to reproduce and error output.
-
-</details>
-
-## Documentation
-
-Start with the website's [worked guides](https://rea.tools/guides/).
-For exact options, prerequisites and result contracts:
-
-- [Installation and setup](docs/installation.md): agent registration, provider configuration, updates and uninstall.
-- [Readiness and troubleshooting](docs/installation.md#check-readiness-for-your-task): diagnose one agent or analysis engine.
-- [CLI and Evidence](docs/cli.md): commands, provider selection, snapshots, import/export and exit statuses.
-- [MCP contracts](docs/mcp-contracts.md) and [agent prompts](docs/mcp-prompts.md): tool results, sessions and guided investigations.
-- [Tool catalog](docs/mcp-contracts.md#generated-catalog): generated inventory of tools, providers and CLI commands.
-- [Roadmap](docs/roadmap.md): planned work and capability trackers.
-
-Report vulnerabilities through [SECURITY.md](SECURITY.md).
-
-## Star history
-
-🎉 **170,000 GitHub stars — thank you!**
-
-Thanks to everyone using REA, reporting bugs, requesting features, testing builds, and contributing fixes.
-
-<a href="https://www.star-history.com/?repos=morluto%2Frea&amp;type=date">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=morluto/rea&amp;type=date&amp;theme=dark&amp;legend=top-left" />
-    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=morluto/rea&amp;type=date" />
-    <img alt="REA GitHub star history" src="https://api.star-history.com/chart?repos=morluto/rea&amp;type=date" />
-  </picture>
-</a>
-
-## Disclaimer
-
-See [DISCLAIMER.md](DISCLAIMER.md) for responsible-use guidance.
-
-The project's position on illegal or unauthorized use covers all REA versions,
-distribution channels, and platforms; each copy retains its applicable licenses.
-
-REA is for lawful research, education, interoperability, software preservation,
-and analysis of software you own or are authorized to examine.
-
-## Contributing
-
-We'd love your help with REA! [Open an issue](https://github.com/morluto/rea/issues) to
-report a bug or suggest a feature, or [send a pull request](https://github.com/morluto/rea/pulls)
-to improve the code or docs.
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and checks,
-[testing](docs/testing.md) for verification lanes, and the
-[architecture map](docs/architecture.mermaid) for the project structure.
-
-## License
-
-[MIT](LICENSE)
-
-REA-authored code is licensed under MIT. Third-party material retains its own
-licenses and copyright notices; see
-[Third-party notices](THIRD_PARTY_NOTICES.md) for the dependency inventory,
-preserved license texts, and external-tool terms.
-
-**You must legally obtain and be authorized to use commercial tools**, including
-IDA Pro / Hex-Rays decompilers, Hopper, and JEB, under their applicable
-licenses. REA grants no tool license, key, or activation entitlement. Trials and
-demos remain subject to vendor terms, including user, feature, automation, and
-output sharing restrictions. Cracked copies, stolen keys, unauthorized key
-sharing, and bypassing license restrictions are not authorized. This guidance
-does not amend MIT or third-party licenses.
+上游项目：<https://github.com/morluto/rea>。上游源码和 `docs/` 保留用于参考；本 fork 的入口、构建方式、DSH 接入和边界以本 README 为准。上游的多语言 README 不再维护，也不要求与本文同步。

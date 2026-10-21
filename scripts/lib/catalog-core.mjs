@@ -41,6 +41,8 @@ const SOURCE_PATHS = {
   officialContracts: "dist/contracts/officialToolContracts.js",
   enhancedContracts: "dist/contracts/enhancedToolContracts.js",
   sessionContracts: "dist/contracts/sessionToolContracts.js",
+  toolPackageContracts:
+    "dist/contracts/toolPackageToolContracts.js",
   binaryDiagnosticsContracts:
     "dist/contracts/native/binaryDiagnosticsToolContracts.js",
   fridaContracts: "dist/contracts/fridaToolContracts.js",
