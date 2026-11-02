@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "id": "workbench",
+  "name": "REA Workbench",
+  "version": "0.2.0",
+  "summary": "QEMU-backed Windows analysis workbench: lifecycle, dual guest agents, T2 introspection, kernel ETW telemetry, copy-on-write file broker, and external-observation evidence export.",
+  "requires": [],
+  "mcp": {
+    "transport": "stdio",
+    "command": "node",
+    "args": ["server.mjs"],
+    "cwd": ".",
+    "timeout_ms": 60000
+  },
+  "boundaries": {
+    "provides": [
+      "start/stop/status for one local QEMU Windows guest",
+      "basic machine profile seed: CPU, RAM, MAC, disk serial, SMBIOS, with host/guest consistency check",
+      "qcow2 offline snapshots and restore (WHPX may refuse running savevm)",
+      "host-to-guest file staging through a shared removable disk",
+      "dual guest agent channels: privileged control on 45999 and interactive launch on 45998",
+      "T2 introspection: processes, services, autoruns, event logs, DNS cache, TCP/UDP endpoints, registry read/write, and deep identity",
+      "Profile Broker: registry identity apply with a SYSTEM startup persistence task, plus firmware/registry/WMI cross-layer verification",
+      "kernel ETW collection (process/file/registry/network) with host-side tracerpt summaries",
+      "copy-on-write file broker: lower staging, deploy, guest diff, harvest to upper, and host commit with backups",
+      "chunked guest file copy with SHA-256 verification on both sides",
+      "QEMU gdbstub register/memory access and breakpoints",
+      "runtime packet capture through QEMU filter-dump",
+      "bounded guest physical memory dumps",
+      "external-observation evidence directory with a SHA-256 manifest",
+      "QEMU log tail"
+    ],
+    "excludes": [
+      "a transparent guest file-I/O proxy or C:\\ path redirection; the broker is explicit deploy/harvest, not a minifilter",
+      "guest memory introspection beyond bounded physical-memory dumps and the gdbstub, or a VMI integration",
+      "anti-VM/anti-debug undetectability claims; agent, ETW, and gdbstub activity are observable",
+      "REA core Evidence records; evidence_export writes external observations only",
+      "running more than one workbench guest per host"
+    ],
+    "authority": "The QEMU process and the installed guest image are the execution authority; the mod only controls their lifecycle and host-side staging.",
+    "prerequisites": [
+      "QEMU 11.1 or newer with WHPX on Windows",
+      "the installed Windows 11 LTSC qcow2 and OVMF vars under the workbench home",
+      "local VNC access for GUI interaction"
+    ]
+  },
+  "profiles": [
+    {
+      "id": "windows-11-ltsc",
+      "title": "Windows 11 LTSC",
+      "summary": "Windows 11 Enterprise LTSC 2024 Evaluation, Q35/OVMF, NVMe, e1000, local VNC."
+    }
+  ],
+  "usage": "Open this package, then call status. Use start/stop for the QEMU guest, snapshot/restore for qcow2 state, and guest_channels to confirm both agent channels. Use guest_* tools for T2 introspection, telemetry_* for kernel ETW, profile_apply/profile_verify for identity layers, broker_* for copy-on-write file work, and evidence_export for an external-observation bundle. The default GUI endpoint is VNC 127.0.0.1:1.",
+  "tools": {
+    "prefix": "workbench"
+  }
+}
