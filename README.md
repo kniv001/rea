@@ -44,15 +44,13 @@ REA 可以作为 MCP 服务挂载到 DeepSeek Harness：
 - 会检查安装版本、Java、headless 入口、native decompiler 和 native authority。
 - 在宿主接入时显式传入 Ghidra 与 Java 路径；缺失或版本不符时给出可执行的修复提示。
 
-## PC 虚拟化工作台（设计稿）
+## PC 虚拟化工作台
 
-- 新增 `workbench` 设计：VM 隔离边界 + Guest OS 真源 + 文件/网络网关 + Profile Broker + 分级观测 + Evidence。
-- 目标在 Guest 内正常执行；静态工具在 Host 侧处理不可变副本，动态工具在 Guest 侧运行。
-- 文件写入分 `read-only` / `cow` / `direct`；`direct` 是真实外部写，必须审批和审计。
-- 默认 `passive` 观测；`in-guest` / `active` 必须显式选择并写入 Evidence。
-- 与现有 `process capture` 分离：后者是 host process 观测，不是沙箱。
-- 完整边界、生命周期、壳、流程和验收门见 [docs/workbench.md](docs/workbench.md)。
-- 可用的 QEMU 壳在 [toolkits/workbench](toolkits/workbench)：安装 `node install-mod.mjs` 后打开 `workbench` 包，提供 status/start/stop、离线 qcow2 快照、双通道 Guest Agent（特权 45999 / 交互 45998）、T2 内省（进程/服务/自启动/事件日志/注册表/身份/网络端点）、Profile Broker（registry 身份持久化 + firmware/registry/WMI 分层校验）、内核 ETW（宿主 tracerpt）、COW 文件 broker（deploy/diff/harvest/commit）、分块文件传输、物理内存 dump、QEMU gdbstub、pcap 和 external-observation Evidence 导出。透明 minifilter/WinFsp、WFP/registry filter、VMI 和 REA core Evidence 仍未接入。
+- QEMU/WHPX 上的 Windows Guest 工作台，作为 `workbench` 外部工具包接入。
+- 双通道 Guest Agent：`45999` 特权（SYSTEM）、`45998` 交互（登录用户）。
+- 功能：生命周期与 qcow2 快照；Guest 内省（进程/服务/自启动/事件日志/注册表/身份/网络）；内核 ETW；Profile Broker（身份持久化 + firmware/registry/WMI 校验）；COW 文件 broker；分块文件传输；pcap、物理内存 dump、QEMU gdbstub；external-observation Evidence 导出。
+- 边界：透明 minifilter/WinFsp、WFP/registry filter、VMI、REA core Evidence 仍未接入。
+- 详见 [docs/workbench.md](docs/workbench.md)；工具有 [toolkits/workbench](toolkits/workbench)。
 
 ## 保留的 REA 能力
 
