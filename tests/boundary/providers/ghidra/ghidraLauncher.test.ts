@@ -428,6 +428,7 @@ describe("Ghidra disabled analyzers", () => {
   });
 });
 
+// eslint-disable-next-line max-lines-per-function -- pre-existing describe block
 describe("Ghidra Windows launcher", () => {
   it("keeps analysis repair outside Windows P0 authority", () => {
     const args = ghidraHeadlessArguments({
